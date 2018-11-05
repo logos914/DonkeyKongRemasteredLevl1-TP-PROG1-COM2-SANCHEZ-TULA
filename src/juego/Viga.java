@@ -3,8 +3,6 @@ package juego;
 import java.awt.Color;
 import entorno.Entorno;
 import entorno.Herramientas;
-import entorno.InterfaceJuego;
-import juego.*;
 
 public class Viga {
 

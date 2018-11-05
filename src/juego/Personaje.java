@@ -8,69 +8,79 @@ import entorno.Herramientas;
 
 public class Personaje {
 
-	private String estado;
 	private int posx;
 	private int posy;
 
+	// Se reservan las referencias necesarias para cada animacion utilizada
 	private Image mirandoIzquierda;
 	private Image mirandoDerecha;
-
 	private Image caminandoIzquierda;
 	private Image caminandoDerecha;
-
 	private Image saltandoIzquierda;
 	private Image saltandoDerecha;
-
 	private Image subiendo;
-
 	private Image subiendo_quieto;
 
-	private char ultima; // ultima tecla de sentido (DER o IZQ) presionada (Sirve para saber para donde
-							// debe mirar el personaje).
+	// Esta referencia realizará un aliasing a la imagen que debe ser mostrada
+	// Se muestra una por vez
+	private Image imagenMario;
 
-	private int tiempoSalto; // tick en el cual se ejecutó el último salto (o el actual)
-
+	private int tiempoSalto; // tick en el cual se ejecutó el último salto (o el salto actual)
 	private boolean estaSaltando; // Indica si está saltando (ascendiendo) o no.
+	private boolean estaCayendo; // Indica si está cayendo (es decir que sus pies no están tocando viga alguna.
 
-	private boolean estaCayendo; // Indica si está cayendo (es decir que sus pies no están no están tocando viga
-									// alguna.
+	private boolean estaCercaEscalera; // Indica si el personaje se encuentra lo suficientemente cerca de una escalera
+										// (para poder usarla)
+	private boolean estaEnEscalera; // Indica si el personaje se encuentra dentro (usando) una escalera
+	private int subidoAEscaleraNro; // Indica que el indice que corresponde a la posición de la escalera que se está
+									// usando dentro del arreglo de escaleras
 
-	private boolean estaCercaEscalera;
-	private boolean estaEnEscalera;
-	private int enEscalera;
-
-	private int sonando = 1; // Ultimo archivo de sonido que se usó para caminar, hay 3 variantes.
-	private int sonandoDesde = 0; // tick en el cual se ejecutó el último sonido de caminar (ayuda a evitar que
+	private int sonando; // Ultimo archivo de sonido que se usó para caminar, hay 3 variantes.
+	private int sonandoDesde; // tick en el cual se ejecutó el último sonido de caminar (ayuda a evitar que
 									// suenen sonidos en cada tick)
 
-	public Personaje(Viga vigasuelo) {
+	private boolean miraDerecha; // Esta variable indica si el personaje está mirando a derecha o no (Vital para
+									// que se cargue la imagen correcta del personaje según los movimientos que
+									// indique el usuario)
 
-		this.estado = "vivo";
+	public Personaje() {
+
+		// Posición por defecto de spawn
 		this.posx = 50;
-		this.posy = (int) vigasuelo.dondeEmpiezaElSuelo() - 35; // 35 pixeles por encima de la viga inicial, genera una
-																// linda caida en el spawn
+		this.posy = 530;
 
+		// direcciones URL de las imagenes y animaciones
 		this.mirandoIzquierda = Herramientas.cargarImagen("rsc/graficos/marito/mira-izquierda.png");
 		this.mirandoDerecha = Herramientas.cargarImagen("rsc/graficos/marito/mira-derecha.png");
-
 		this.caminandoIzquierda = Herramientas.cargarImagen("rsc/graficos/marito/camina-izquierda.gif");
 		this.caminandoDerecha = Herramientas.cargarImagen("rsc/graficos/marito/camina-derecha.gif");
-
 		this.saltandoIzquierda = Herramientas.cargarImagen("rsc/graficos/marito/salta-izquierda.png");
 		this.saltandoDerecha = Herramientas.cargarImagen("rsc/graficos/marito/salta-derecha.png");
-
 		this.subiendo = Herramientas.cargarImagen("rsc/graficos/marito/subiendo.gif");
 		this.subiendo_quieto = Herramientas.cargarImagen("rsc/graficos/marito/quieto_subiendo.png");
 
+		// Por defecto no hubo salto y no momentos anterior al cero. Tampoco el
+		// personaje esta saltando, cayendo ni en una escalera ni cerca de alguna.
 		this.tiempoSalto = 0;
 		this.estaSaltando = false;
 		this.estaCayendo = false;
 		this.estaEnEscalera = false;
 		this.estaCercaEscalera = false;
-		this.ultima = 39;
+		
+		this.sonando = 1;
+		this.sonandoDesde = 0;
 
+		// Por defecto la imagen a mostrarse es mirando a derecha
+		this.imagenMario = this.mirandoDerecha;
+
+		// Por defecto debe mirar a derecha
+		this.miraDerecha = true;
 	}
 
+	
+	/*
+	 * Es la función que indica si el jugador está tocando el barril pasado como parámetro
+	 */
 	public boolean tocando(Barril[] barriles) {
 
 		for (int i = 0; i < barriles.length; i++) {
@@ -79,9 +89,9 @@ public class Personaje {
 
 				if (this.lateralDerecho() - barriles[i].lateralIzquierdo() > 0
 						&& this.lateralIzquierdo() - barriles[i].lateralIzquierdo() < 0
-						&& this.pies() - barriles[i].pies() >= 0 && this.cabeza() - barriles[i].pies() <= 0
+						&& this.obtenerPosPies() - barriles[i].superior() >= 3
+						&& this.obtenerPosCabeza() - barriles[i].pies() <= -10) {
 
-				) {
 					System.out.println("[" + i + "] Colision Derecha");
 					return true;
 
@@ -89,9 +99,8 @@ public class Personaje {
 
 				if (this.lateralIzquierdo() - barriles[i].lateralDerecho() < 0
 						&& this.lateralDerecho() - barriles[i].lateralDerecho() > 0
-						&& this.pies() - barriles[i].pies() >= 0 && this.cabeza() - barriles[i].pies() <= 0
-
-				) {
+						&& this.obtenerPosPies() - barriles[i].superior() >= 3
+						&& this.obtenerPosCabeza() - barriles[i].pies() <= -10) {
 					System.out.println("[" + i + "] Colision Izquierda");
 					return true;
 
@@ -135,104 +144,6 @@ public class Personaje {
 	}
 
 	/*
-	 * Saltar
-	 * 
-	 * La función saltar se encarga de la parte de un salto que se ejecuta una sola
-	 * vez. Es decir que no se encarga de la animación de subida o caida a lo largo
-	 * de los ticks de un salto normal.
-	 * 
-	 * Se le debe indicaar el entorno y el contador de ticks actual.
-	 * 
-	 * Cambia el dibujo de caminar por el salto, según hacia que lado este mirando
-	 * el personaje. Cambia el estado de estaSaltando a verdadero. Ejecuta el sonido
-	 * del salto. Indica el tick en el cual se realizó el salto, guardando el valor
-	 * en tiempoSalto.
-	 * 
-	 */
-
-	public void saltar(Entorno entorno, int contador) {
-
-		if (this.ultima == entorno.TECLA_DERECHA) {
-
-			entorno.dibujarImagen(saltandoDerecha, this.posx, this.posy, 0, 0.090);
-
-			this.tiempoSalto = contador;
-			this.estaSaltando = true;
-			Herramientas.play("rsc/sonidos/jump.wav");
-
-		} else {
-
-			entorno.dibujarImagen(saltandoIzquierda, this.posx, this.posy, 0, 0.090);
-
-			this.tiempoSalto = contador;
-			this.estaSaltando = true;
-			Herramientas.play("rsc/sonidos/jump.wav");
-
-		}
-
-	}
-
-	/*
-	 * Saltando
-	 * 
-	 * Esta función se encarga de manipular, a lo largo del tiempo, lo que ocurre
-	 * con el personaje cuando no está en el suelo.
-	 * 
-	 * Se la llama por cada tick.
-	 * 
-	 * Requiere el entorno, el contador actual y el arreglo con las vigas.
-	 * 
-	 * Si el momento actual se produce con menos de 30 ticks de diferencia, entonces
-	 * hay que elevar 1px al jugador (restar 1 en eje 'y').
-	 * 
-	 * De lo contrario analiza si NO está pisando alguna viga. Si no está pisando
-	 * vigas, entonces debe descender un pixel por cada tick, hasta que pise alguna
-	 * viga.
-	 */
-
-	public void saltando(Entorno entorno, int contador, Viga[] suelos) {
-		if (this.estaEnEscalera == false && this.estado.equals("vivo")) {
-
-			if (estaSaltando && contador - this.tiempoSalto < 30) {
-
-				if (this.ultima == entorno.TECLA_DERECHA) {
-
-					this.posy = this.posy - 1;
-					entorno.dibujarImagen(saltandoDerecha, this.posx, this.posy, 0, 0.090);
-
-				} else {
-
-					this.posy = this.posy - 1;
-					entorno.dibujarImagen(saltandoIzquierda, this.posx, this.posy, 0, 0.090);
-
-				}
-
-			} else {
-
-				this.estaSaltando = false;
-
-				if (pisando(entorno, suelos) == -1) {
-
-					if (this.ultima == entorno.TECLA_DERECHA) {
-
-						this.posy = this.posy + 1;
-						entorno.dibujarImagen(saltandoDerecha, this.posx, this.posy, 0, 0.090);
-					}
-
-					else {
-
-						this.posy = this.posy + 1;
-						entorno.dibujarImagen(saltandoIzquierda, this.posx, this.posy, 0, 0.090);
-
-					}
-
-				}
-
-			}
-		}
-	}
-
-	/*
 	 * Pisando
 	 * 
 	 * Esta funcion devuelve el indice que ocupa la viga en el arreglo de suelos. Si
@@ -241,9 +152,9 @@ public class Personaje {
 	 * Requiere que se entregue el entorno y el arreglo de vigas como parámetros.
 	 * 
 	 * Para saber si no está pisando la viga, el centro 'y' del personaje + 20
-	 * pixeles (para llegar al pie del personaje) pies() debe poseer un valor
-	 * distinto para la coordenada 'y' donde comienza cada viga (la posy - 12px)
-	 * (int)suelos[i].dondeEmpiezaElSuelo().
+	 * pixeles (para llegar al pie del personaje) obtenerPosPies() debe poseer un
+	 * valor distinto para la coordenada 'y' donde comienza cada viga (la posy -
+	 * 12px) (int)suelos[i].dondeEmpiezaElSuelo().
 	 * 
 	 * En el caso de que el personaje se encuentra pisando la viga. Queda por
 	 * conocer si se encuentra dentro de todos los puntos 'x' que conforman el largo
@@ -258,12 +169,12 @@ public class Personaje {
 	 * 
 	 */
 
-	public int pisando(Entorno entorno, Viga[] suelos) {
+	public int pisando(Viga[] suelos) {
 
-		if (this.estaEnEscalera == false) {
+		if (this.obtenerEstaEnEscalera() == false) {
 			for (int i = 0; i < suelos.length; i++) {
 
-				if (this.pies() == (int) suelos[i].dondeEmpiezaElSuelo()) {
+				if (this.obtenerPosPies() == (int) suelos[i].dondeEmpiezaElSuelo()) {
 
 					if (this.lateralDerecho() < suelos[i].extremoIzquierdo()
 							|| this.lateralIzquierdo() > suelos[i].extremoDerecho()) {
@@ -282,142 +193,11 @@ public class Personaje {
 			return -1;
 
 		} else {
-			return this.enEscalera;
-		}
 
-	}
-
-	// Devuelve un entero con el valor que ocupan los pies del personaje en el eje
-	// 'y'
-
-	public int pies() {
-		return this.posy + 20;
-	}
-
-	public int cabeza() {
-		return this.posy - 20;
-	}
-
-	/*
-	 * Dibujar
-	 * 
-	 * Esta función detecta las teclas presionadas y según condiciones ejecuta las
-	 * acciones que debe realizar el personaje.
-	 * 
-	 * Se la debe llamar en cada tick
-	 * 
-	 * Recibe como parámetro el entorno y el momento actual medido en ticks.
-	 * 
-	 * Como prioridad, deteca si el usuario solicita saltar, presionando la
-	 * espaciadora. Pero solo permite ejecutar dicha acción, si desde la última vez
-	 * que saltó pasaron más de 60 tics (lo que requiere como mínimo un salto). Y a
-	 * su vez, que el personaje no esté cayendo.
-	 * 
-	 * 
-	 * Continúa evaluando si se presionan las teclas derecha e izquierda y ejecuta
-	 * dichos movimientos, pero sólo si el personaje no está saltando ni tampoco
-	 * esta cayendo. ## Este juego no permite desplazarse de izq a der mientras se
-	 * está en el aire.
-	 * 
-	 * Sólo permite desplazarse a los costados, si el jugador no sale de pantalla.
-	 * 
-	 * Luego, si ninguna tecla está siendo presionada, deja al jugador mirando hacia
-	 * el lado que corresponde según el último movimiento.
-	 */
-
-	public void dibujar(Entorno entorno, int contador, Escaleras[] escaleras) {
-
-		if (!this.estado.equals("vivo")) {
-			this.posy = this.posy + 3;
-			entorno.dibujarImagen(saltandoDerecha, this.posx, this.posy, 90, 0.090);
-
-		} else {
-
-			// Unica forma de saltar (saltando siempre que no haya sido muy pronto desde el
-			// salto anterior y no se esté cayendo
-			if (entorno.sePresiono(entorno.TECLA_ESPACIO) && this.tiempoSalto + 60 < contador
-					&& this.estaCayendo == false && this.estaEnEscalera == false) {
-
-				this.saltar(entorno, contador);
-
-			}
-
-			// unica forma de pasar a estar dentro de una escalera (estando cerca de una
-			// escalera pero no dentro de una)
-			if (this.estaCercaEscalera == true && this.estaEnEscalera == false) {
-
-				if (entorno.sePresiono(entorno.TECLA_ARRIBA)
-						&& this.pies() > escaleras[this.enEscalera].extremoSuperior()) {
-
-					this.subirEscaleras(entorno, escaleras);
-				}
-
-				else if (entorno.sePresiono(entorno.TECLA_ABAJO)
-						&& this.pies() < escaleras[this.enEscalera].extremoInferior()) {
-
-					this.bajarEscaleras(entorno, escaleras);
-				}
-
-			}
-
-			// unica forma de moverse ya dentro de una escalera (estar cerca de una y ya
-			// dentro de una)
-			if (this.estaCercaEscalera == true && this.estaEnEscalera == true) {
-
-				if (entorno.estaPresionada(entorno.TECLA_ARRIBA)) {
-
-					this.subirEscaleras(entorno, escaleras);
-				}
-
-				else if (entorno.estaPresionada(entorno.TECLA_ABAJO)) {
-
-					this.bajarEscaleras(entorno, escaleras);
-				} else {
-
-					entorno.dibujarImagen(subiendo_quieto, this.posx, this.posy, 0, 0.090);
-
-				}
-			}
-
-			// unica forma de moverse de izquierda a derecha (no estar cayendo ni saltando
-			// ni dentro de una escalera)
-			if (this.estaCayendo == false && this.estaSaltando == false && this.estaEnEscalera == false) {
-
-				// caminar a derecha
-				if (entorno.estaPresionada(entorno.TECLA_DERECHA)) {
-
-					if (this.posx <= 790) {
-						this.posx = this.posx + 2;
-					}
-
-					entorno.dibujarImagen(caminandoDerecha, this.posx, this.posy, 0, 0.090);
-					hacerSonar(contador);
-					this.ultima = entorno.TECLA_DERECHA;
-				}
-
-				// caminar a izquierda
-				else if (entorno.estaPresionada(entorno.TECLA_IZQUIERDA)) {
-
-					if (this.posx >= 10) {
-						this.posx = this.posx - 2;
-					}
-
-					entorno.dibujarImagen(caminandoIzquierda, this.posx, this.posy, 0, 0.090);
-					hacerSonar(contador);
-					this.ultima = entorno.TECLA_IZQUIERDA;
-				}
-
-				// mirar hacia el ultimo lado caminado
-				else {
-
-					if (this.ultima == entorno.TECLA_DERECHA) {
-						entorno.dibujarImagen(mirandoDerecha, this.posx, this.posy, 0, 0.090);
-					} else {
-						entorno.dibujarImagen(mirandoIzquierda, this.posx, this.posy, 0, 0.090);
-					}
-
-				}
-
+			if (this.subidoAEscaleraNro > 4) {
+				return this.subidoAEscaleraNro - 5;
+			} else {
+				return this.subidoAEscaleraNro;
 			}
 		}
 
@@ -433,44 +213,72 @@ public class Personaje {
 	 * 
 	 */
 
-	public void estoyCercaDeEscalera(Entorno entorno, Escaleras[] escaleras, Viga[] suelos) {
+	public void estoyCercaDeEscalera(Escaleras[] escaleras, Viga[] suelos) {
 
 		int hallado = 0;
-		int i = pisando(entorno, suelos);
+		int i = pisando(suelos);
 
 		// Sólo analiza la proximidad de una escalera, si la función pisando devuelve el
 		// índice de la viga pisada.
-		// No se analiza proximidad para valores -1 (en el aire) ni si se está cayendo.
+		// No se analiza proximidad para valores -1 (en el aire) (se está cayendo).
 		if (i != -1 && this.estaCayendo == false) {
 
 			// Comprobación de escaleras para todos los pisos excepto el último
 			if (i != suelos.length - 1) {
 
 				// Se analiza una escalera que comienza en el piso actual y sube al próximo
-				if ((escaleras[i].extremoInferior() - this.pies() <= 5)) {
+				if ((escaleras[i].extremoInferior() - this.obtenerPosPies() <= 5)) {
 
 					if (escaleras[i].lateralDerecho() >= this.posx && escaleras[i].lateralIzquierdo() <= this.posx) {
 						this.estaCercaEscalera = true;
-						this.enEscalera = i;
+						this.subidoAEscaleraNro = i;
 
 						hallado += 1;
 					}
 				}
+
+				// Se analiza una escalera adicional que comienza en el piso actual y sube al
+				// próximo o quizas no sube del todo
+				if ((escaleras[i + 5].extremoInferior() - this.obtenerPosPies() <= 5)) {
+
+					if (escaleras[i + 5].lateralDerecho() >= this.posx
+							&& escaleras[i + 5].lateralIzquierdo() <= this.posx) {
+						this.estaCercaEscalera = true;
+						this.subidoAEscaleraNro = i + 5;
+
+						hallado += 1;
+					}
+				}
+
 			}
 
 			// Comprobación de escaleras para todos los pisos excepto la planta baja
 			if (i != 0) {
-				if (escaleras[i - 1].extremoSuperior() - this.pies() <= 10) {
+				if (escaleras[i - 1].extremoSuperior() - this.obtenerPosPies() <= 10) {
 
 					// Se analiza una escalera que termina en el piso actual y desciende al inferior
 					if (escaleras[i - 1].lateralDerecho() >= this.posx
 							&& escaleras[i - 1].lateralIzquierdo() <= this.posx) {
 						this.estaCercaEscalera = true;
-						this.enEscalera = i - 1;
+						this.subidoAEscaleraNro = i - 1;
 
 						hallado += 1;
 					}
 				}
+
+				if (escaleras[i + 4].extremoSuperior() - this.obtenerPosPies() <= 10) {
+
+					// Se analiza una escalera adicional que termina en el piso actual y desciende
+					// al inferior
+					if (escaleras[i + 4].lateralDerecho() >= this.posx
+							&& escaleras[i + 4].lateralIzquierdo() <= this.posx) {
+						this.estaCercaEscalera = true;
+						this.subidoAEscaleraNro = i + 4;
+
+						hallado += 1;
+					}
+				}
+
 			}
 
 		}
@@ -483,62 +291,39 @@ public class Personaje {
 	}
 
 	/*
-	 * Esta función ejecuta las animaciones correspondiente a subir escalera y se
-	 * encarga de informar si ya terminó de subirla. Es decir que sale de la
-	 * escalera y se encuentra en el piso superior.
-	 * 
+	 * Realiza los calculos geométricos para saber que un barril fue correctamente
+	 * saltado.
 	 */
 
-	public void subirEscaleras(Entorno entorno, Escaleras[] escaleras) {
+	public boolean saltandoBarril(Barril barril) {
 
-		if (this.pies() < escaleras[this.enEscalera].extremoSuperior() && this.estaEnEscalera == true) {
-			// entorno.dibujarImagen(subio, this.posx, this.posy, 0, 0.20);
-			this.estaEnEscalera = false;
-
-			if (this.enEscalera % 2 == 0) {
-				this.ultima = entorno.TECLA_IZQUIERDA;
-				entorno.dibujarImagen(mirandoIzquierda, this.posx, this.posy, 0, 0.090);
-
-			} else {
-				this.ultima = entorno.TECLA_DERECHA;
-				entorno.dibujarImagen(mirandoDerecha, this.posx, this.posy, 0, 0.090);
-
-			}
+		if ((this.posx + 1 == barril.centroX() || this.posx - 1 == barril.centroX() || this.posx == barril.centroX())
+				&& this.obtenerPosPies() - barril.superior() <= 0 && this.obtenerPosPies() - barril.superior() > -50
+				&& barril.fueSaltado() == false && this.obtenerEstaEnEscalera() == false) {
+			
+			Herramientas.play("rsc/sonidos/salta_barril.wav");
+			barril.saltado();
+			return true;
 
 		} else {
-
-			this.posy = this.posy - 2;
-			this.estaEnEscalera = true;
-			entorno.dibujarImagen(subiendo, this.posx, this.posy, 0, 0.090);
+			return false;
 		}
+
 	}
 
 	/*
-	 * Esta función ejecuta las animaciones correspondiente a bajar escalera y se
-	 * encarga de informar si ya terminó de descender. Es decir que sale de la
-	 * escalera y se encuentra en el piso inferior.
-	 * 
+	 * Dibuja al personaje. Se deben calcular las situaciones y cambiar las
+	 * variables previamente con otros métodos.
 	 */
 
-	public void bajarEscaleras(Entorno entorno, Escaleras[] escaleras) {
-
-		if (this.pies() >= escaleras[this.enEscalera].extremoInferior() - 5 && this.estaEnEscalera == true) {
-			this.estaEnEscalera = false;
-
-			if (this.enEscalera % 2 == 0) {
-				this.ultima = entorno.TECLA_DERECHA;
-			} else {
-				this.ultima = entorno.TECLA_IZQUIERDA;
-			}
-		} else {
-
-			this.posy = this.posy + 2;
-			this.estaEnEscalera = true;
-			entorno.dibujarImagen(subiendo, this.posx, this.posy, 0, 0.090);
-		}
+	public void dibujar(Entorno entorno, int rotacion) {
+		entorno.dibujarImagen(imagenMario, this.posx, this.posy, rotacion, 0.090);
 
 	}
 
+	/*
+	 * Devuelven la posicion extrema lateral correspondiente
+	 */
 	public int lateralDerecho() {
 		return posx + 15;
 	}
@@ -547,41 +332,116 @@ public class Personaje {
 		return posx - 15;
 	}
 
-	public boolean estaEnEscalera() {
-		return this.estaEnEscalera;
+	/*
+	 * Setters de las posiciones X e Y
+	 */
+	public void cambiarY(int pixeles) {
+		this.posy = this.posy + pixeles;
 	}
 
-	public void morir() {
-		this.estado = "muerto";
+	public void cambiarX(int pixeles) {
+		this.posx = this.posx + pixeles;
 	}
 
 	/*
-	 * Retorna verdadero sólo cuando el jugador se encuentra en una posición x igual
-	 * o menor a 150 y a la vez en la última viga del arreglo (donde se encuentra
-	 * donkey).
+	 * Devuelven la posicion extremas verticales correspondiente
 	 */
 
-	public boolean ganar(Entorno entorno, Viga[] suelos) {
-		if (this.pisando(entorno, suelos) == suelos.length - 1 && this.lateralIzquierdo() <= 150) {
-			return true;
-		} else {
-			return false;
-		}
+	public int obtenerPosPies() {
+		return this.posy + 20;
+	}
+
+	public int obtenerPosCabeza() {
+		return this.posy - 20;
+	}
+
+	/*
+	 * Getters
+	 */
+
+	public boolean obtenerEstaEnEscalera() {
+		return this.estaEnEscalera;
+	}
+
+	public int obtenerMomentoDeSalto() {
+		return this.tiempoSalto;
+	}
+
+	public boolean obtenerEstaCayendo() {
+		return this.estaCayendo;
+	}
+
+	public boolean obtenerEstaCercaEscalera() {
+		return this.estaCercaEscalera;
+	}
+
+	public int obtenerSubidoAEscaleraNro() {
+		return this.subidoAEscaleraNro;
+	}
+
+	public boolean obtenerMiraDerecha() {
+		return this.miraDerecha;
+	}
+
+	public boolean obtenerEstaSaltando() {
+		return this.estaSaltando;
+	}
+
+	/*
+	 * Setters
+	 */
+
+	public void cambiarMomentoDeSalto(int i) {
+		this.tiempoSalto = i;
 
 	}
 
-	public boolean saltandoBarril(Barril barril) {
+	public void cambiarEstaEnEscalera(boolean escalera) {
+		this.estaEnEscalera = escalera;
+	}
 
-		if ((this.posx + 1 == barril.centroX() || this.posx - 1 == barril.centroX() || this.posx == barril.centroX())
-				&& this.pies() - barril.superior() <= 0 && this.pies() - barril.superior() > -50
-				&& barril.fueSaltado() == false && this.estaEnEscalera == false) {
-			barril.saltado();
-			return true;
+	public void cambiarMiraDerecha(boolean mira) {
+		this.miraDerecha = mira;
+	}
 
+	public void cambiarEstaSaltando(boolean salta) {
+		this.estaSaltando = salta;
+	}
+
+	/*
+	 * Ayudan a cambiar por la imagen correcta, según el String indicado, y según a
+	 * que lado esté mirando el personaje
+	 */
+	public void cambiarImagen(String s) {
+
+		if (s.equals("mirando") && !this.imagenMario.equals(mirandoIzquierda) && !this.miraDerecha) {
+			imagenMario = mirandoIzquierda;
 		}
 
-		else {
-			return false;
+		else if (s.equals("mirando") && !this.imagenMario.equals(mirandoDerecha) && this.miraDerecha) {
+			imagenMario = mirandoDerecha;
+		}
+
+		else if (s.equals("caminando") && !this.imagenMario.equals(caminandoIzquierda) && !this.miraDerecha) {
+			imagenMario = caminandoIzquierda;
+		}
+
+		else if (s.equals("caminando") && !this.imagenMario.equals(caminandoDerecha) && this.miraDerecha) {
+			imagenMario = caminandoDerecha;
+		}
+
+		else if (s.equals("saltando") && !this.imagenMario.equals(saltandoIzquierda) && !this.miraDerecha) {
+			imagenMario = saltandoIzquierda;
+		}
+
+		else if (s.equals("saltando") && !this.imagenMario.equals(saltandoDerecha) && this.miraDerecha) {
+			imagenMario = saltandoDerecha;
+		}
+
+		else if (s.equals("subiendo") && !this.imagenMario.equals(subiendo)) {
+			imagenMario = subiendo;
+		} else if (s.equals("quieto") && !this.imagenMario.equals(subiendo_quieto)) {
+			imagenMario = subiendo_quieto;
 		}
 
 	}

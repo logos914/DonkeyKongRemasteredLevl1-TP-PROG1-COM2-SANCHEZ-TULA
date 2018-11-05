@@ -1,26 +1,23 @@
 package juego;
 
-import java.awt.Color;
 import java.util.Random;
 
 import java.awt.Image;
 
 import entorno.Entorno;
 import entorno.Herramientas;
-import entorno.InterfaceJuego;
-import juego.*;
 
 public class Donkey {
 
-	int ultimoLanzamiento;
-	Random rnd = new Random();
-	int lanzarRandom;
-	String violencia;
+	private int ultimoLanzamiento;
+
+	private int lanzarRandom;
+	private String violencia;
 
 	public Donkey() {
 
-		ultimoLanzamiento = 0;
-		violencia = "violento";
+		this.ultimoLanzamiento = 0;
+		this.violencia = "violento";
 
 	}
 
@@ -43,6 +40,8 @@ public class Donkey {
 
 	public boolean decidir(int contador) {
 
+		Random rnd = new Random();
+
 		if (this.violencia.equals("violento")) {
 			if (this.lanzarRandom == contador) {
 				this.ultimoLanzamiento = contador;
@@ -51,9 +50,9 @@ public class Donkey {
 				return true;
 			}
 
-			if (contador >= this.ultimoLanzamiento + this.rnd.nextInt(220) + 60 && this.lanzarRandom == 0) {
+			if (contador >= this.ultimoLanzamiento + rnd.nextInt(220) + 60 && this.lanzarRandom == 0) {
 
-				lanzarRandom = this.rnd.nextInt(250) + contador;
+				lanzarRandom = rnd.nextInt(250) + contador;
 
 				return false;
 			}
@@ -70,8 +69,8 @@ public class Donkey {
 	}
 
 	public int arribaOabajo() {
-
-		int eleccion = this.rnd.nextInt(60);
+		Random rnd = new Random();
+		int eleccion = rnd.nextInt(60);
 		if (eleccion % 3 == 0) {
 			return -3;
 		} else {
